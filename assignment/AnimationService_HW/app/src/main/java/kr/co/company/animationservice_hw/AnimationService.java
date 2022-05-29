@@ -1,14 +1,33 @@
 package kr.co.company.animationservice_hw;
 
+import android.animation.ValueAnimator;
 import android.app.Service;
 import android.content.Intent;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
+import android.view.animation.OvershootInterpolator;
 
 public class AnimationService extends Service {
+    public static final boolean START = true;
+    public static final boolean STOP = false;
+
+    ValueAnimator valueAnimator;
+    Messenger valMessenger;
     public AnimationService() {
+        valueAnimator = ValueAnimator.ofFloat(0, 360);
+        valueAnimator.setDuration(3000);
+        valueAnimator.addUpdateListener(valueAnimator1 -> {
+            float angle = (float)valueAnimator1.getAnimatedValue();
+            Message msg = Message.obtain();
+            msg.obj = angle;
+            try {
+                valMessenger.send(msg);
+            }catch (RemoteException e){
+                e.printStackTrace();
+            }
+        });
     }
 
     @Override
@@ -18,30 +37,23 @@ public class AnimationService extends Service {
     }
 
     public int onStartCommand(Intent intent, int flags, int startId) {
-        Messenger valMessenger = (Messenger)intent.getExtras().get("ValueMessenger");
-
-        Thread animThread = new Thread() {
-            public void run() {
-                float startAngle = 0;
-                float endAngle = 360;
-                float angle = startAngle;
-                float incAngle = 5;
-                while (angle < endAngle) {
-                    angle += incAngle;
-                    Message msg = Message.obtain();
-                    msg.obj = new Float(angle);
-                    try {
-                        valMessenger.send(msg);
-                        Thread.sleep(10);
-                    } catch (RemoteException e) {
-                        e.printStackTrace();
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                }
+        valMessenger = (Messenger)intent.getExtras().get("ValueMessenger");
+        boolean order = (boolean)intent.getExtras().get("Order");
+        if(order == START){
+            float tension = (float)intent.getExtras().get("Tension");
+            valueAnimator.setInterpolator(new OvershootInterpolator(tension));
+            valueAnimator.start();
+        }
+        else if (order == STOP){
+            valueAnimator.cancel();
+            Message msg = Message.obtain();
+            msg.obj = (float)0;
+            try {
+                valMessenger.send(msg);
+            } catch (RemoteException e) {
+                e.printStackTrace();
             }
-        };
-        animThread.start();
+        }
 
         return super.onStartCommand(intent, flags, startId);
     }
